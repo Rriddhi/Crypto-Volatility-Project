@@ -1,0 +1,9 @@
+pandas
+numpy
+pyarrow
+scikit-learn
+mlflow
+evidently
+confluent-kafka
+websockets
+python-dotenv

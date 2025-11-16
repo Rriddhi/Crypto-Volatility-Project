@@ -1,0 +1,66 @@
+version: "3.8"
+
+services:
+  kafka:
+    image: confluentinc/cp-kafka:7.7.0
+    container_name: kafka
+    restart: unless-stopped
+    environment:
+      # KRaft (no ZooKeeper)
+      KAFKA_PROCESS_ROLES: "broker,controller"
+      KAFKA_NODE_ID: "1"
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka:9093"
+      KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+
+      # Listeners:
+      # - PLAINTEXT for in-Docker communication at kafka:9092
+      # - CONTROLLER for KRaft internal quorum at 9093
+      # - EXTERNAL for host access; mapped to host port 9092 below
+      KAFKA_LISTENERS: "PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,EXTERNAL://0.0.0.0:9094"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:9092,EXTERNAL://localhost:9092"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT"
+      KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
+
+      # Single-broker defaults
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "1"
+      KAFKA_MIN_INSYNC_REPLICAS: "1"
+
+      # Helpful defaults
+      KAFKA_NUM_PARTITIONS: "3"
+      KAFKA_LOG_DIRS: "/var/lib/kafka/data"
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    ports:
+      # Map host 9092 -> container 9094 (EXTERNAL listener) so macOS can reach Kafka at localhost:9092
+      - "9092:9094"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    networks:
+      - appnet
+
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.16.0
+    container_name: mlflow
+    restart: unless-stopped
+    command:
+      - mlflow
+      - server
+      - --host=0.0.0.0
+      - --port=5000
+      - --backend-store-uri=sqlite:////mlruns/mlflow.db
+      - --default-artifact-root=/mlruns
+    ports:
+      - "5000:5000"
+    volumes:
+      # Bind to project_root/mlruns (compose is in docker/, so ../mlruns resolves correctly)
+      - ../mlruns:/mlruns
+    networks:
+      - appnet
+
+volumes:
+  kafka_data:
+
+networks:
+  appnet:
+    driver: bridge
