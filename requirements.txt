@@ -4,6 +4,10 @@ pyarrow
 scikit-learn
 mlflow
 evidently
-confluent-kafka
-websockets
+kafka-python
+websocket-client
 python-dotenv
+matplotlib
+seaborn
+jupyter
+ipykernel
