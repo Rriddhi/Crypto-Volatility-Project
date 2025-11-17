@@ -23,6 +23,11 @@ def parse_args() -> argparse.Namespace:
         default=10,
         help="Minimum number of messages to read before exiting (default: 10)",
     )
+    parser.add_argument(
+        "--from-beginning",
+        action="store_true",
+        help="Read from the beginning of the topic (default: read only new messages)",
+    )
     return parser.parse_args()
 
 
@@ -54,12 +59,13 @@ def main() -> None:
     target_count = max(1, args.min)
     stopper = GracefulExit()
 
+    offset_reset = "earliest" if args.from_beginning else "latest"
     consumer = KafkaConsumer(
         args.topic,
         bootstrap_servers="localhost:9092",
-        auto_offset_reset="latest",
+        auto_offset_reset=offset_reset,
         enable_auto_commit=True,
-        consumer_timeout_ms=0,  # block indefinitely until messages arrive
+        consumer_timeout_ms=5000,  # timeout after 5 seconds if no messages
         value_deserializer=lambda v: v,  # keep as bytes; we handle printing
     )
 

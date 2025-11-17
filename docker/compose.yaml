@@ -1,21 +1,24 @@
-version: "3.8"
-
 services:
   kafka:
     image: confluentinc/cp-kafka:7.7.0
     container_name: kafka
     restart: unless-stopped
+    ports:
+      # Host 9092 → container EXTERNAL listener
+      - "9092:9094"
     environment:
       # KRaft (no ZooKeeper)
       KAFKA_PROCESS_ROLES: "broker,controller"
       KAFKA_NODE_ID: "1"
       KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka:9093"
       KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+      # Static cluster ID for single-node dev cluster (KRaft)
+      CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
 
       # Listeners:
-      # - PLAINTEXT for in-Docker communication at kafka:9092
-      # - CONTROLLER for KRaft internal quorum at 9093
-      # - EXTERNAL for host access; mapped to host port 9092 below
+      # - PLAINTEXT: internal, for other containers (kafka:9092)
+      # - CONTROLLER: KRaft internal
+      # - EXTERNAL: for host access, mapped to 9092 on macOS
       KAFKA_LISTENERS: "PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,EXTERNAL://0.0.0.0:9094"
       KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:9092,EXTERNAL://localhost:9092"
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT"
@@ -27,13 +30,9 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "1"
       KAFKA_MIN_INSYNC_REPLICAS: "1"
 
-      # Helpful defaults
-      KAFKA_NUM_PARTITIONS: "3"
+      # Storage
       KAFKA_LOG_DIRS: "/var/lib/kafka/data"
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
-    ports:
-      # Map host 9092 -> container 9094 (EXTERNAL listener) so macOS can reach Kafka at localhost:9092
-      - "9092:9094"
     volumes:
       - kafka_data:/var/lib/kafka/data
     networks:
@@ -51,7 +50,8 @@ services:
       - --backend-store-uri=sqlite:////mlruns/mlflow.db
       - --default-artifact-root=/mlruns
     ports:
-      - "5000:5000"
+      # Host 5001 -> container 5000 to avoid conflicts if something already uses 5000
+      - "5001:5000"
     volumes:
       # Bind to project_root/mlruns (compose is in docker/, so ../mlruns resolves correctly)
       - ../mlruns:/mlruns
