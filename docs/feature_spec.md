@@ -156,17 +156,12 @@ The spike threshold τ is determined via exploratory data analysis (EDA) using p
 
 ### 5.2 Chosen Threshold
 
-**Chosen τ = <0.00003099>**
+**Chosen τ = 3.099017148247265e-05**
 
-*Note: This value will be set based on EDA percentile analysis in `notebooks/eda.ipynb`. After running the EDA notebook and reviewing percentile plots, update this section with:*
-- *The selected percentile (e.g., 95th, 99th)*
-- *The numerical threshold value*
-- *Justification based on the plots and business requirements*
-
-**Example (to be replaced after EDA):**
+**Selected Threshold:**
 - Selected percentile: 95th
-- Threshold value: 0.0045 (to be determined from data)
-- Justification: [To be filled after EDA analysis]
+- Threshold value: 3.099017148247265e-05 (determined from training data)
+- Justification: The 95th percentile threshold was selected to balance sensitivity (catching volatility spikes) with specificity (avoiding false positives). This threshold identifies approximately 5% of samples as positive class (volatility spikes), providing sufficient positive examples for model training while maintaining a meaningful definition of "spike" relative to normal volatility patterns.
 
 ---
 

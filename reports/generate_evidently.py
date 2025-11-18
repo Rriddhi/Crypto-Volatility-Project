@@ -129,6 +129,54 @@ def split_windows(
     return reference_df, current_df
 
 
+def time_based_split(
+    df: pd.DataFrame,
+    train_ratio: float = 0.6,
+    val_ratio: float = 0.2,
+    test_ratio: float = 0.2,
+) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """
+    Split data into train/val/test sets based on time order.
+    
+    This replicates the same split logic used in models/train.py.
+    
+    Args:
+        df: DataFrame sorted by timestamp
+        train_ratio: Proportion for training set (default: 0.6)
+        val_ratio: Proportion for validation set (default: 0.2)
+        test_ratio: Proportion for test set (default: 0.2)
+    
+    Returns:
+        Tuple of (train_df, val_df, test_df)
+    """
+    total_rows = len(df)
+    train_end = int(total_rows * train_ratio)
+    val_end = train_end + int(total_rows * val_ratio)
+    
+    train_df = df.iloc[:train_end].copy()
+    val_df = df.iloc[train_end:val_end].copy()
+    test_df = df.iloc[val_end:].copy()
+    
+    logger.info(
+        f"Time-based split: train={len(train_df)} ({train_ratio*100:.0f}%), "
+        f"val={len(val_df)} ({val_ratio*100:.0f}%), "
+        f"test={len(test_df)} ({test_ratio*100:.0f}%)"
+    )
+    
+    if 'timestamp' in df.columns:
+        logger.info(
+            f"Train period: {train_df['timestamp'].min()} to {train_df['timestamp'].max()}"
+        )
+        logger.info(
+            f"Val period: {val_df['timestamp'].min()} to {val_df['timestamp'].max()}"
+        )
+        logger.info(
+            f"Test period: {test_df['timestamp'].min()} to {test_df['timestamp'].max()}"
+        )
+    
+    return train_df, val_df, test_df
+
+
 def save_report(snapshot, html_path: Path, json_path: Path, report_name: str) -> None:
     """Helper function to save Evidently report as HTML and JSON."""
     # Save JSON report from snapshot
@@ -370,6 +418,70 @@ def generate_combined_report(
         save_report(snapshot, html_path, json_path, "combined report")
 
 
+def generate_train_test_report(
+    train_df: pd.DataFrame,
+    test_df: pd.DataFrame,
+    output_dir: Path,
+) -> None:
+    """
+    Generate drift and quality report comparing train vs test splits.
+    
+    This replicates the same train/test split used in models/train.py
+    and compares the distributions to detect data drift.
+    """
+    logger.info("Generating train vs test drift + quality report...")
+    
+    # Select only numeric features
+    numeric_features = [
+        'midprice',
+        'midprice_return',
+        'rolling_vol',
+        'spread',
+        'trade_intensity',
+    ]
+    numeric_features = [col for col in numeric_features if col in train_df.columns]
+    
+    # Prepare dataframes
+    train_data = train_df[numeric_features].copy()
+    test_data = test_df[numeric_features].copy()
+    
+    if EVIDENTLY_NEW_API:
+        # New API: Use Dashboard with multiple tabs
+        combined_dashboard = Dashboard(
+            tabs=[DataDriftTab(), DataQualityTab()]
+        )
+        combined_dashboard.calculate(train_data, test_data)
+        
+        # Save HTML
+        html_path = output_dir / "train_test_drift_report.html"
+        combined_dashboard.save(str(html_path))
+        logger.info(f"✓ Saved train/test HTML report: {html_path}")
+        
+        # Save JSON
+        json_path = output_dir / "train_test_drift_report.json"
+        combined_dashboard.save_json(str(json_path))
+        logger.info(f"✓ Saved train/test JSON report: {json_path}")
+    else:
+        # Evidently 0.7+ API: Use Report with multiple presets
+        combined_report = Report(
+            metrics=[
+                DataDriftPreset(),
+                DataQualityPreset(),
+            ]
+        )
+        
+        # Run report - returns a Snapshot
+        snapshot = combined_report.run(
+            reference_data=train_data,
+            current_data=test_data,
+        )
+        
+        # Save reports using helper function
+        html_path = output_dir / "train_test_drift_report.html"
+        json_path = output_dir / "train_test_drift_report.json"
+        save_report(snapshot, html_path, json_path, "train/test drift report")
+
+
 def main() -> None:
     """Main entry point."""
     parser = argparse.ArgumentParser(
@@ -407,6 +519,31 @@ def main() -> None:
         help="Type of report to generate (default: all)",
     )
     parser.add_argument(
+        "--mode",
+        type=str,
+        choices=["early_late", "train_test"],
+        default="train_test",
+        help="Comparison mode: 'early_late' compares early vs late windows, 'train_test' compares train vs test splits (default: train_test)",
+    )
+    parser.add_argument(
+        "--train-ratio",
+        type=float,
+        default=0.6,
+        help="Training set ratio for train_test mode (default: 0.6)",
+    )
+    parser.add_argument(
+        "--val-ratio",
+        type=float,
+        default=0.2,
+        help="Validation set ratio for train_test mode (default: 0.2)",
+    )
+    parser.add_argument(
+        "--test-ratio",
+        type=float,
+        default=0.2,
+        help="Test set ratio for train_test mode (default: 0.2)",
+    )
+    parser.add_argument(
         "--verbose",
         action="store_true",
         help="Enable verbose logging",
@@ -416,6 +553,14 @@ def main() -> None:
     
     if args.verbose:
         logging.getLogger().setLevel(logging.DEBUG)
+    
+    # Validate split ratios for train_test mode
+    if args.mode == "train_test":
+        total_ratio = args.train_ratio + args.val_ratio + args.test_ratio
+        if abs(total_ratio - 1.0) > 1e-6:
+            raise ValueError(
+                f"Split ratios must sum to 1.0, got {total_ratio:.6f}"
+            )
     
     # Find project root and resolve paths
     project_root = find_project_root()
@@ -432,22 +577,51 @@ def main() -> None:
     if len(df) < 100:
         logger.warning(f"Very few rows ({len(df)}). Reports may not be meaningful.")
     
-    # Split into windows
-    reference_df, current_df = split_windows(
-        df,
-        reference_pct=args.reference_pct,
-        current_pct=args.current_pct,
-    )
-    
-    # Generate reports
-    if args.report_type in ("drift", "all"):
-        generate_drift_report(reference_df, current_df, output_dir)
-    
-    if args.report_type in ("quality", "all"):
-        generate_quality_report(reference_df, current_df, output_dir)
-    
-    if args.report_type in ("combined", "all"):
-        generate_combined_report(reference_df, current_df, output_dir)
+    # Split data based on mode
+    if args.mode == "train_test":
+        logger.info("=" * 80)
+        logger.info("MODE: Train vs Test Comparison")
+        logger.info("=" * 80)
+        
+        # Use same split logic as models/train.py
+        train_df, val_df, test_df = time_based_split(
+            df,
+            train_ratio=args.train_ratio,
+            val_ratio=args.val_ratio,
+            test_ratio=args.test_ratio,
+        )
+        
+        # Compare train (reference) vs test (current)
+        reference_df = train_df
+        current_df = test_df
+        
+        logger.info(f"Reference: Train set ({len(reference_df)} rows)")
+        logger.info(f"Current: Test set ({len(current_df)} rows)")
+        
+        # Generate train/test report
+        generate_train_test_report(reference_df, current_df, output_dir)
+        
+    else:  # early_late mode
+        logger.info("=" * 80)
+        logger.info("MODE: Early vs Late Window Comparison")
+        logger.info("=" * 80)
+        
+        # Split into windows
+        reference_df, current_df = split_windows(
+            df,
+            reference_pct=args.reference_pct,
+            current_pct=args.current_pct,
+        )
+        
+        # Generate reports
+        if args.report_type in ("drift", "all"):
+            generate_drift_report(reference_df, current_df, output_dir)
+        
+        if args.report_type in ("quality", "all"):
+            generate_quality_report(reference_df, current_df, output_dir)
+        
+        if args.report_type in ("combined", "all"):
+            generate_combined_report(reference_df, current_df, output_dir)
     
     logger.info("\n" + "="*80)
     logger.info("✓ Evidently report generation complete!")
