@@ -119,25 +119,25 @@ crypto-volatility-project/
 ## Milestones
 
 ### Milestone 1: Data Ingestion & Infrastructure
-- ✅ Docker Compose setup (Kafka + MLflow)
-- ✅ WebSocket ingestion script
-- ✅ Kafka integration
-- ✅ Documentation (scoping brief, architecture, setup)
+- Docker Compose setup (Kafka + MLflow)
+- WebSocket ingestion script
+- Kafka integration
+- Documentation (scoping brief, architecture, setup)
 
 ### Milestone 2: Feature Engineering, EDA & Evidently
-- ✅ Feature engineering pipeline
-- ✅ Feature specification document
-- ✅ EDA notebook
-- ✅ Replay script for validation
-- ✅ Evidently drift detection reports
+- Feature engineering pipeline
+- Feature specification document
+- EDA notebook
+- Replay script for validation
+- Evidently drift detection reports
 
 ### Milestone 3: Modeling, Tracking, Evaluation
-- ✅ Baseline and ML model training
-- ✅ Model inference script
-- ✅ MLflow experiment tracking
-- ✅ Model Card (docs/model_card_v1.md)
-- ✅ Model Evaluation Report (reports/model_eval.md)
-- ✅ GenAI Appendix (docs/genai_appendix.md)
+- Baseline and ML model training
+- Model inference script
+- MLflow experiment tracking
+- Model Card (docs/model_card_v1.md)
+- Model Evaluation Report (reports/model_eval.md)
+- GenAI Appendix (docs/genai_appendix.md)
 
 ## Model Performance
 
