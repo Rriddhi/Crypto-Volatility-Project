@@ -29,7 +29,6 @@ This project utilized generative AI tools (primarily Cursor and ChatGPT) to acce
 - **Prompt (summary):** "Create a WebSocket client script to ingest Coinbase Advanced Trade ticker data, publish to Kafka, and save raw data to NDJSON files with error handling and reconnection logic"
 - **Used in:**
   - `scripts/ws_ingest.py`
-  - `scripts/data/ingest_websocket.py` (if applicable)
 - **Verification:**
   - Tested WebSocket connection to Coinbase API
   - Validated message parsing and JSON structure handling
